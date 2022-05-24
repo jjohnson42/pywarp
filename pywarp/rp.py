@@ -1,4 +1,4 @@
-import re, json, hashlib, secrets
+import json, hashlib, secrets
 
 import cbor2
 
@@ -9,8 +9,9 @@ from .util import b64_encode, b64url_decode
 
 
 class RelyingPartyManager:
-    def __init__(self, rp_name, rp_id=None, credential_storage_backend=None):
+    def __init__(self, rp_name, rp_id=None, credential_storage_backend=None, require_attestation=True):
         self.storage_backend = credential_storage_backend
+        self.require_attestation = require_attestation
         self.rp_name = rp_name
         self.rp_id = rp_id
 
@@ -37,7 +38,7 @@ class RelyingPartyManager:
             ],
             "timeout": 60 * 1000,
             "excludeCredentials": [],
-            "attestation": "direct",
+            "attestation": "direct" if self.require_attestation else "none",
             "extensions": {"loc": True}
         }
 
@@ -64,8 +65,6 @@ class RelyingPartyManager:
         "Store the credential public key and related metadata on the server using the associated storage backend"
         authenticator_attestation_response = cbor2.loads(attestation_object)
         email = email.decode()
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            raise Exception("Invalid email address")
         client_data_hash = hashlib.sha256(client_data_json).digest()
         client_data = json.loads(client_data_json)
         assert client_data["type"] == "webauthn.create"
@@ -81,11 +80,12 @@ class RelyingPartyManager:
         assert authenticator_data.user_present
         # If user verification is required for this registration,
         # verify that the User Verified bit of the flags in authData is set.
-        assert authenticator_attestation_response["fmt"] == "fido-u2f"
-        att_stmt = FIDOU2FAttestationStatement(authenticator_attestation_response['attStmt'])
-        attestation = att_stmt.validate(authenticator_data,
-                                        rp_id_hash=authenticator_data.rp_id_hash,
-                                        client_data_hash=client_data_hash)
+        if self.require_attestation:
+            assert authenticator_attestation_response["fmt"] == "fido-u2f"
+            att_stmt = FIDOU2FAttestationStatement(authenticator_attestation_response['attStmt'])
+            attestation = att_stmt.validate(authenticator_data,
+                                            rp_id_hash=authenticator_data.rp_id_hash,
+                                            client_data_hash=client_data_hash)
         credential = attestation.credential
         # TODO: ascertain user identity here
         self.storage_backend.save_credential_for_user(email=email, credential=credential)
@@ -95,8 +95,6 @@ class RelyingPartyManager:
     def verify(self, authenticator_data, client_data_json, signature, user_handle, raw_id, email):
         "Ascertain the validity of credentials supplied by the client user agent via navigator.credentials.get()"
         email = email.decode()
-        if not re.match(r"[^@]+@[^@]+\.[^@]+", email):
-            raise Exception("Invalid email address")
         client_data_hash = hashlib.sha256(client_data_json).digest()
         client_data = json.loads(client_data_json)
         assert client_data["type"] == "webauthn.get"
