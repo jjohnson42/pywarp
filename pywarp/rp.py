@@ -86,7 +86,9 @@ class RelyingPartyManager:
             attestation = att_stmt.validate(authenticator_data,
                                             rp_id_hash=authenticator_data.rp_id_hash,
                                             client_data_hash=client_data_hash)
-        credential = attestation.credential
+            credential = attestation.credential
+        else:
+            credential = pywarp.authenticators.AuthenticatorData(authenticator_data).credential
         # TODO: ascertain user identity here
         self.storage_backend.save_credential_for_user(email=email, credential=credential)
         return {"registered": True}
