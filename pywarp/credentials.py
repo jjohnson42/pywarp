@@ -10,7 +10,6 @@ class CredentialPublicKey:
     def __init__(self, cbor_cose_key):
         self.cbor_cose_key = cbor_cose_key
         COSE_key = cbor2.loads(cbor_cose_key)
-        print("Init CPK from COSE", COSE_key)
         self.key_type = COSE_key[Params.KTY]
         self.algorithm = COSE_key[Params.ALG]
         if self.key_type == KeyTypes.EC2:

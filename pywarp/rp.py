@@ -68,10 +68,8 @@ class RelyingPartyManager:
         client_data_hash = hashlib.sha256(client_data_json).digest()
         client_data = json.loads(client_data_json)
         assert client_data["type"] == "webauthn.create"
-        print("client data", client_data)
         expect_challenge = self.storage_backend.get_challenge_for_user(email=email, type="registration")
         assert b64url_decode(client_data["challenge"]) == expect_challenge
-        print("expect RP ID:", self.rp_id)
         if self.rp_id:
             assert "https://" + self.rp_id == client_data["origin"]
         # Verify that the value of C.origin matches the Relying Party's origin.
@@ -88,7 +86,7 @@ class RelyingPartyManager:
                                             client_data_hash=client_data_hash)
             credential = attestation.credential
         else:
-            credential = pywarp.authenticators.AuthenticatorData(authenticator_data).credential
+            credential = authenticator_data.credential
         # TODO: ascertain user identity here
         self.storage_backend.save_credential_for_user(email=email, credential=credential)
         return {"registered": True}
@@ -102,7 +100,6 @@ class RelyingPartyManager:
         assert client_data["type"] == "webauthn.get"
         expect_challenge = self.storage_backend.get_challenge_for_user(email=email, type="authentication")
         assert b64url_decode(client_data["challenge"]) == expect_challenge
-        print("expect RP ID:", self.rp_id)
         if self.rp_id:
             assert "https://" + self.rp_id == client_data["origin"]
         # Verify that the value of C.origin matches the Relying Party's origin.
