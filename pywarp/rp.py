@@ -9,7 +9,8 @@ from .util import b64_encode, b64url_decode
 
 
 class RelyingPartyManager:
-    def __init__(self, rp_name, rp_id=None, credential_storage_backend=None, require_attestation=True):
+    def __init__(self, rp_name, rp_id=None, credential_storage_backend=None,
+                 require_attestation=True):
         self.storage_backend = credential_storage_backend
         self.require_attestation = require_attestation
         self.rp_name = rp_name
@@ -46,14 +47,17 @@ class RelyingPartyManager:
         return options
 
     def get_authentication_options(self, email):
-        credential = self.storage_backend.get_credential_by_email(email)
+        if hasattr(self.storage_backend, 'get_credential_ids_by_email'):
+            cids = [x for x in self.storage_backend.get_credential_ids_by_email(email)]
+        else:
+            cids = [self.storage_backend.get_credentials_by_email(email).id]
         challenge = secrets.token_bytes(32)
 
         options = {
             "challenge": challenge,
             "timeout": 60 * 1000,
             "allowCredentials": [
-                {"type": "public-key", "id": b64_encode(credential.id)}
+                {"type": "public-key", "id": b64_encode(x)} for x in cids
             ],
         }
 
@@ -106,7 +110,10 @@ class RelyingPartyManager:
         # Verify that the RP ID hash in authData is indeed the SHA-256 hash of the RP ID expected by the RP.
         authenticator_data = AuthenticatorData(authenticator_data)
         assert authenticator_data.user_present
-        credential = self.storage_backend.get_credential_by_email(email)
+        if hasattr(self.storage_backend, 'get_credential_by_email_id'):
+            credential = self.storage_backend.get_credential_by_email_id(email, raw_id)
+        else:
+            credential = self.storage_backend.get_credential_by_email(email)
         credential.verify(signature, authenticator_data.raw_auth_data + client_data_hash)
         # signature counter check
         return {"verified": True}
